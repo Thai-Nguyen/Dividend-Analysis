@@ -6,6 +6,8 @@ obtained from Yahoo Finance.
 
 TODO: Generalize this to work with different companies. Possiblly make a 
 text file for each company containing custom inputs.
+TODO: If ticker data is not available in the folder, find a way of 
+downloading it from Yahoo Finance or another site. 
 '''
 
 import numpy as np
@@ -13,6 +15,8 @@ import plotly.graph_objects as go
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 pd.options.plotting.backend = "plotly"
+
+import argparse
 
 def clean_data(data):
     '''
@@ -68,14 +72,14 @@ def main():
     print(data.head())
     
     # Calculate best fit curves.
-    domains = [['Apr 2011', 'Jan 2021'], 
+    domains = [['Jan 2015', 'Jan 2021'], 
                ['Mar 1995', 'Mar 2001'], 
                ['Sep 2003', 'Oct 2008']]
     X = []
     Y_pred = []
     for domain in domains:
         X.append(data[domain[0]:domain[1]].index)
-        Y_pred.append(get_best_fit(data[domain[0]:domain[1]]))
+        Y_pred.append(get_best_fit(data[domain[0]:domain[1]], verbose=True),)
     
     # Calculate the annual growth rate
     growth=get_cagr(data.loc['Jan 2020'].values[0], data.loc['Jan 2021'].values[0], 1)
@@ -83,11 +87,12 @@ def main():
 
     # Plot the data.
     fig = go.Figure()
-    fig.update_yaxes(type='log')
+    # fig.update_yaxes(type='log')
     fig.add_trace(go.Scatter(x=data.index, y=data.Dividends, mode='markers', name='Dividends (dB)'))
     for i in range(len(Y_pred)):
         fig.add_trace(go.Scatter(x=X[i], y=Y_pred[i], mode='lines', name=f'fit{i}'))
     fig.show()
 
 if __name__ == "__main__":
+    # args = parse_arguments()
     main()
