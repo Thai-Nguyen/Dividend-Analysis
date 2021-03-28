@@ -9,90 +9,71 @@ text file for each company containing custom inputs.
 TODO: If ticker data is not available in the folder, find a way of 
 downloading it from Yahoo Finance or another site. 
 '''
+import analyze
 
-import numpy as np
-import plotly.graph_objects as go
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-pd.options.plotting.backend = "plotly"
-
+from pathlib import Path
 import argparse
+import yaml
+# Load config file containing all paths.
+with open('config.yml', 'r') as stream:
+    try:
+        paths = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
+        print(exc)
 
 def clean_data(data):
     '''
     Cleans the historical dividends data obtained from Yahoo Finance.
-    The issues are 
+    The issues with data obtained from Yahoo Finance are
      - Yahoo Finance gives data that is unsorted
     '''
     data = data.sort_values(by='Date')
     return data
 
-def get_best_fit(data, verbose=False):
+def check_ticker(ticker):
     '''
-    Gets a curve of best fit with the given data. It is assumed that 
-    companies generally increase their dividend every period over time.
-
-    From this assumption the data is fitted to an exponential curve.
+    Check if historical dividend data is available for that 
+    ticker symbol.  
     '''
-    X = (data.index - data.index[0]).days # NOTE: Compounding period is in days
-    Y = np.log(data.Dividends)
-
-    X = np.array(X).reshape(-1,1) # Regressor requires data to be '2-D'
-    Y = np.array(Y).reshape(-1,1) # That is, it likes to see one column and 
-                                  # many rows.
-
-    linear_regressor = LinearRegression()
-    linear_regressor.fit(X, Y)
-    Y_pred = linear_regressor.predict(X)
     
-    Y_pred = np.exp(Y_pred)
-    Y_pred = Y_pred.flatten() # plotly doesn't like dealing with a list of lists
+    ticker_list = get_tickers()
+    if ticker in ticker_list:
+        return ticker
+    else:
+        raise argparse.ArgumentError('Ticker symbol not available')
 
-    if verbose:
-        print(f'Best Fit Equation: Y_pred = {np.exp(linear_regressor.intercept_)}exp({linear_regressor.coef_}X')
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Looks at a company's historical record of dividend payouts.")
+    parser.add_argument('ticker', type=check_ticker, help='The ticker symbol for the company under analysis')
+    
+    args = parser.parse_args()
+    return args
 
-    return Y_pred
-
-def get_cagr(begin_value, end_value, num_years):
+def get_tickers():
     '''
-    Calculate the cumulative annual growth rate
+    Returns a list of strings containing all the available ticker symbols 
     '''
-    return pow((end_value/begin_value), (1/num_years)) - 1
+    path = Path(paths['dividend_data_path'])
+    files = path.glob('*.csv')
+    return [x.stem for x in files if x.is_file()]
 
 def main():
-    # Retrieve the historical dividend data.
-    path = './data/dividends/TD.TO.csv'
+    # Parse arguments from user.
+    args = parse_arguments()
+    ticker_symbol = args.ticker
+    # ticker_symbol = 'TD.TO'
+    
+    path = Path(paths['dividend_data_path'] + ticker_symbol + '.csv')
     data = pd.read_csv(path, index_col='Date', parse_dates=True)
 
     # Clean the data
     data = clean_data(data)
-    
-    # Check that the data looks right
-    data.info()
-    print(data.head())
-    
-    # Calculate best fit curves.
-    domains = [['Jan 2015', 'Jan 2021'], 
-               ['Mar 1995', 'Mar 2001'], 
-               ['Sep 2003', 'Oct 2008']]
-    X = []
-    Y_pred = []
-    for domain in domains:
-        X.append(data[domain[0]:domain[1]].index)
-        Y_pred.append(get_best_fit(data[domain[0]:domain[1]], verbose=True),)
-    
-    # Calculate the annual growth rate
-    growth=get_cagr(data.loc['Jan 2020'].values[0], data.loc['Jan 2021'].values[0], 1)
-    print(f'Cumulative Annual Growth Rate: {growth*100} percent')
 
-    # Plot the data.
-    fig = go.Figure()
-    # fig.update_yaxes(type='log')
-    fig.add_trace(go.Scatter(x=data.index, y=data.Dividends, mode='markers', name='Dividends (dB)'))
-    for i in range(len(Y_pred)):
-        fig.add_trace(go.Scatter(x=X[i], y=Y_pred[i], mode='lines', name=f'fit{i}'))
-    fig.show()
+    # Analyze the data
+    analyze.analyze(data) 
 
 if __name__ == "__main__":
-    # args = parse_arguments()
+
     main()

@@ -1,0 +1,3 @@
+data_path: './data/'
+dividend_data_path: './data/dividends/'
+test_data_path: './data/test/'
